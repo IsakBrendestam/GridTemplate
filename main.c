@@ -1,33 +1,19 @@
 
 #include<stdio.h>           // Standard input output library
-#include <stdlib.h>         // Stadart Library
                             
 #include <time.h>           // For initialization for randum number generator
-#include <math.h>           // For mathematical functions
 
 #include <SDL2/SDL.h>       // SDL2 for graphical window
 
-#include <unistd.h>
 
-#define MAX(x, y) ((x > y) ? x : y)
-#define MIN(x, y) ((x < y) ? x : y)
+#define CAM_WIDTH 1280      
+#define CAM_HEIGHT 840   
 
-// Window Values
-#define CAM_WIDTH 1280      // Possible Values: 640, 1280
-#define CAM_HEIGHT 840      // Possible Values: 320, 840
-
-// Grid Values
-#define RECT_WIDTH 8
-#define RECT_HEIGHT 8
-
-#define ROWS CAM_HEIGHT/RECT_WIDTH
-#define COLUMNS CAM_WIDTH/RECT_WIDTH
+#define ROWS 1920
+#define COLUMNS 1080
 
 #define GRID_SIZE ROWS*COLUMNS
 
-#define BG_SHADE 0
-
-#define NUM_THREADS 4
 
 typedef struct Pixel
 {
@@ -39,14 +25,12 @@ typedef struct Pixel
 
 char buf_index;
 void *buffer_grid[2];
-
 int pitch;
-
-float ColorMask[3] = {0.2, 0.6, 0.9};
 
 SDL_Window *gameWindow;
 SDL_Renderer *gameRenderer;
 SDL_Texture *gameTexture;
+
 
 float Rand01()
 {
@@ -55,25 +39,29 @@ float Rand01()
 
 void GridUpdate(Pixel* tempGrid, double deltaTime)
 {
-    // Updating every agent
+    // Update Grid Here
     for (int i = 0; i < GRID_SIZE; i++)
     {
         Pixel* pix = &tempGrid[i];
-        pix->R = 255;
-        pix->G = 0;
-        pix->B = 0;
+        pix->R = Rand01()*255;
+        pix->G = Rand01()*255;
+        pix->B = Rand01()*255;
     }
 }
 
 int Update(double deltaTime)
 {
+    // Locking Texture to current buffer
     if (SDL_LockTexture(gameTexture, NULL, &buffer_grid[buf_index], &pitch) < 0)
+    {
+        printf("Could not lock texture: %s\n", SDL_GetError());
         return -1;
+    }
 
-    Pixel* tempGrid = (Pixel*)buffer_grid[buf_index]; 
+    Pixel* grid = (Pixel*)buffer_grid[buf_index]; 
+    GridUpdate(grid, deltaTime);
 
-    GridUpdate(tempGrid, deltaTime);
-
+    // Unlocking Texture
     SDL_UnlockTexture(gameTexture);
 
     return 0;
@@ -89,26 +77,21 @@ void Draw()
     buf_index = !buf_index;
 }
 
-
-int GameWindow()
-{
-    // Initialize random number generator
-    srand(time(NULL));
-
+int InitSDL()
+{ 
     // Initialize window
     SDL_Init(SDL_INIT_VIDEO);
 
     // Creating window
     gameWindow = SDL_CreateWindow("Window",
-                                SDL_WINDOWPOS_CENTERED,
-                                SDL_WINDOWPOS_CENTERED,
-                                CAM_WIDTH,
-                                CAM_HEIGHT,
-                                SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN
-    );
+                                  SDL_WINDOWPOS_CENTERED,
+                                  SDL_WINDOWPOS_CENTERED,
+                                  CAM_WIDTH,
+                                  CAM_HEIGHT,
+                                  SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN);
 
-    // Checking if window is created
-    if (gameWindow == NULL) {
+    if (gameWindow == NULL) 
+    {
         printf("Could not create window: %s\n", SDL_GetError());
         return -1;
     }
@@ -116,45 +99,75 @@ int GameWindow()
     // Creating renderer window
     gameRenderer = SDL_CreateRenderer(gameWindow, -1, SDL_RENDERER_ACCELERATED);
 
+    if (gameRenderer == NULL)
+    {
+        printf("Could not create renderer: %s\n", SDL_GetError());
+        return -1;
+    }
+
     // Creating streaming texture
     gameTexture = SDL_CreateTexture(gameRenderer, 
                                     SDL_PIXELFORMAT_ARGB8888,
                                     SDL_TEXTUREACCESS_STREAMING,
-                                    CAM_WIDTH/RECT_WIDTH,
-                                    CAM_HEIGHT/RECT_HEIGHT); 
+                                    ROWS,
+                                    COLUMNS); 
     
+    if (gameTexture == NULL)
+    {
+        printf("Could not create texture: %s\n", SDL_GetError());
+        return -1;
+    }
+
+    return 0;
+}
+
+int GameWindow()
+{
+    // Initialize random number generator
+    srand(time(NULL));
+
+    if (InitSDL() < 0)
+        return -1;
 
     // General Event Structure
     SDL_Event e;            
                             
-    char quit = 0;
-
     clock_t time1 = clock();
     clock_t time2 = clock();
+
     double deltaTime = 0;
     double fps = 0;
-
-    float time = 0;
+    char quit = 0;
 
     // Event loop
     while (quit == 0){
-
         time2 = clock();
+
         deltaTime = (double)(time2-time1)/CLOCKS_PER_SEC;
         fps = 1/deltaTime;
 
         // Wait before start
         while (SDL_PollEvent(&e))
         {
-            if (e.type == SDL_QUIT)
-                quit = 1;
+            switch (e.type)
+            {
+                case SDL_QUIT:
+                    quit = 1;
+                    break;
 
-            if (e.type == SDL_MOUSEBUTTONDOWN)
-                quit = 1;
+                case SDL_KEYDOWN:
+                    // Quitting if Esc is pressed
+                    if (e.key.keysym.sym == SDLK_ESCAPE)
+                        quit = 1;
+                    break;
+            }
         }
 
-        Update(deltaTime);
+        // Updating Grid
+        if (Update(deltaTime) < 0)
+            return -1;
         
+        // Drawing Grid
         Draw();
 
         printf("FPS:%f\r", fps);
