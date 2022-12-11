@@ -14,6 +14,8 @@
 
 #define GRID_SIZE ROWS*COLUMNS
 
+#define NUM_BUFFERS 2
+
 
 typedef struct Pixel
 {
@@ -24,7 +26,7 @@ typedef struct Pixel
 } Pixel;
 
 char buf_index;
-void *buffer_grid[2];
+void *bufferGrid[2];
 int pitch;
 
 SDL_Window *gameWindow;
@@ -37,31 +39,42 @@ float Rand01()
     return (float)(rand()%1000)/1000;
 }
 
-void GridUpdate(Pixel* tempGrid, double deltaTime)
+void GridUpdate(Pixel* tempGrid, Pixel* lastGrid, double deltaTime)
 {
     // Update Grid Here
     for (int i = 0; i < GRID_SIZE; i++)
     {
         Pixel* pix = &tempGrid[i];
-        pix->R = Rand01()*255;
-        pix->G = Rand01()*255;
-        pix->B = Rand01()*255;
+        Pixel* lastPix = &lastGrid[i];
+
+        char alive = rand()%2;
+
+        pix->R = alive*255;
+        pix->G = alive*255;
+        pix->B = alive*255;
     }
 }
 
 int Update(double deltaTime)
 {
+
     // Locking Texture to current buffer
-    if (SDL_LockTexture(gameTexture, NULL, &buffer_grid[buf_index], &pitch) < 0)
+    if (SDL_LockTexture(gameTexture, NULL, &bufferGrid[0], &pitch) < 0)
     {
         printf("Could not lock texture: %s\n", SDL_GetError());
         return -1;
     }
 
-    Pixel* grid = (Pixel*)buffer_grid[buf_index]; 
-    GridUpdate(grid, deltaTime);
+    Pixel* lastGrid = (Pixel*)bufferGrid[1]; 
+
+    Pixel* grid = (Pixel*)bufferGrid[0];
+
+    GridUpdate(grid, lastGrid, deltaTime);
+
+    memcpy(lastGrid, grid, GRID_SIZE*sizeof(Pixel));
 
     // Unlocking Texture
+
     SDL_UnlockTexture(gameTexture);
 
     return 0;
@@ -72,9 +85,8 @@ void Draw()
     // Renders texture to screen
     SDL_RenderCopy(gameRenderer, gameTexture, NULL, NULL);
     SDL_RenderPresent(gameRenderer);
-    
+
     // Change Buffer
-    buf_index = !buf_index;
 }
 
 int InitSDL()
@@ -126,6 +138,9 @@ int GameWindow()
     // Initialize random number generator
     srand(time(NULL));
 
+    for (int i = 0; i < NUM_BUFFERS; i++)
+        bufferGrid[i] = (int*)calloc(GRID_SIZE, sizeof(Pixel));
+
     if (InitSDL() < 0)
         return -1;
 
@@ -170,8 +185,8 @@ int GameWindow()
         // Drawing Grid
         Draw();
 
-        printf("FPS:%f\r", fps);
-        fflush(stdout);
+//        printf("FPS:%f\r", fps);
+//        fflush(stdout);
 
         time1 = time2;
     }
