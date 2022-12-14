@@ -1,4 +1,3 @@
-
 #include<stdio.h>           // Standard input output library
                             
 #include <time.h>           // For initialization for randum number generator
@@ -26,13 +25,12 @@ typedef struct Pixel
 } Pixel;
 
 char buf_index;
-void *bufferGrid[2];
+void **bufferGrid;
 int pitch;
 
 SDL_Window *gameWindow;
 SDL_Renderer *gameRenderer;
 SDL_Texture *gameTexture;
-
 
 float Rand01()
 {
@@ -138,6 +136,7 @@ int GameWindow()
     // Initialize random number generator
     srand(time(NULL));
 
+    bufferGrid = malloc(2*sizeof(void*));
     for (int i = 0; i < NUM_BUFFERS; i++)
         bufferGrid[i] = (int*)calloc(GRID_SIZE, sizeof(Pixel));
 
@@ -185,8 +184,8 @@ int GameWindow()
         // Drawing Grid
         Draw();
 
-//        printf("FPS:%f\r", fps);
-//        fflush(stdout);
+        printf("FPS:%f\r", fps);
+        fflush(stdout);
 
         time1 = time2;
     }
